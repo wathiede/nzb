@@ -1,9 +1,8 @@
 package nzb
 
 import (
-	"xml"
-	"os"
 	"bytes"
+	"encoding/xml"
 	"io"
 )
 
@@ -19,14 +18,13 @@ type Nzb struct {
 	Files NzbFileSlice
 }
 
-func NewString(data string) (*Nzb, os.Error) {
+func NewString(data string) (*Nzb, error) {
 	return New(bytes.NewBufferString(data))
 }
 
-func New(buf io.Reader) (*Nzb, os.Error) {
+func New(buf io.Reader) (*Nzb, error) {
 	xnzb := new(xNzb)
-	err := xml.Unmarshal(buf, xnzb)
-	if err != nil {
+	if err := xml.NewDecoder(buf).Decode(xnzb); err != nil {
 		return nil, err
 	}
 	// convert to nicer format
@@ -53,22 +51,22 @@ type xNzb struct {
 
 // used only in unmarshalling xml
 type xNzbMeta struct {
-	Type  string `xml:"attr"`
-	Value string `xml:"innerxml"`
+	Type  string `xml:"type,attr"`
+	Value string `xml:",innerxml"`
 }
 
 type NzbFile struct {
 	Groups   []string     `xml:"groups>group"`
 	Segments []NzbSegment `xml:"segments>segment"`
-	Poster   string       `xml:"attr"`
-	Date     int          `xml:"attr"`
-	Subject  string       `xml:"attr"`
+	Poster   string       `xml:"poster,attr"`
+	Date     int          `xml:"date,attr"`
+	Subject  string       `xml:"subject,attr"`
 	Part     int
 }
 
 type NzbSegment struct {
 	XMLName xml.Name `xml:"segment"`
-	Bytes   int      `xml:"attr"`
-	Number  int      `xml:"attr"`
-	Id      string   `xml:"innerxml"`
+	Bytes   int      `xml:"bytes,attr"`
+	Number  int      `xml:"number,attr"`
+	Id      string   `xml:",innerxml"`
 }
