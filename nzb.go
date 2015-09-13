@@ -3,19 +3,20 @@ package nzb
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"io"
 )
 
-// a slice of NzbFiles extended to allow sorting
-type NzbFileSlice []*NzbFile
+// Sort NzbFile by part number.
+type NzbByPart []*NzbFile
 
-func (s NzbFileSlice) Len() int           { return len(s) }
-func (s NzbFileSlice) Less(i, j int) bool { return s[i].Part < s[j].Part }
-func (s NzbFileSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s NzbByPart) Len() int           { return len(s) }
+func (s NzbByPart) Less(i, j int) bool { return s[i].Part < s[j].Part }
+func (s NzbByPart) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 type Nzb struct {
 	Meta  map[string]string
-	Files NzbFileSlice
+	Files []*NzbFile
 }
 
 func NewString(data string) (*Nzb, error) {
@@ -24,7 +25,17 @@ func NewString(data string) (*Nzb, error) {
 
 func New(buf io.Reader) (*Nzb, error) {
 	xnzb := new(xNzb)
-	if err := xml.NewDecoder(buf).Decode(xnzb); err != nil {
+	dec := xml.NewDecoder(buf)
+	// TODO(wathiede): some NZB's are iso-8859-1, if we need to support more,
+	// handled here.
+	dec.CharsetReader = func(charset string, r io.Reader) (io.Reader, error) {
+		switch charset {
+		case "iso-8859-1", "utf-8":
+			return r, nil
+		}
+		return nil, fmt.Errorf("No encoding translator for %q", charset)
+	}
+	if err := dec.Decode(xnzb); err != nil {
 		return nil, err
 	}
 	// convert to nicer format
@@ -34,8 +45,6 @@ func New(buf io.Reader) (*Nzb, error) {
 	for _, md := range xnzb.Metadata {
 		nzb.Meta[md.Type] = md.Value
 	}
-	// copy files into (sortable) NzbFileSlice
-	nzb.Files = make(NzbFileSlice, 0)
 	for i, _ := range xnzb.File {
 		nzb.Files = append(nzb.Files, &xnzb.File[i])
 	}
